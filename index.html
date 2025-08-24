@@ -1,0 +1,210 @@
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>hyuir - تسجيل الشاشة</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      text-align: center;
+      background:#0d0d0d;
+      color:#fff;
+      padding:20px;
+      transition: background 0.5s, color 0.5s;
+    }
+    body.light {
+      background:#f5f5f5;
+      color:#222;
+    }
+    h2 {
+      font-size:32px;
+      background: linear-gradient(90deg,#ff00ff,#00ffff);
+      -webkit-background-clip:text;
+      -webkit-text-fill-color:transparent;
+      margin-bottom:20px;
+    }
+    button, select, #toggleTheme {
+      margin:10px;
+      padding:12px 22px;
+      font-size:16px;
+      border:none;
+      border-radius:12px;
+      cursor:pointer;
+      background:#1a1a1a;
+      color:#fff;
+      box-shadow:0 4px 12px rgba(0,0,0,0.5);
+      transition:0.3s;
+    }
+    body.light button, body.light select, body.light #toggleTheme {
+      background:#fff;
+      color:#222;
+      box-shadow:0 4px 12px rgba(0,0,0,0.2);
+    }
+    button:hover, select:hover, #toggleTheme:hover {
+      background:#333;
+      transform:scale(1.05)
+    }
+    body.light button:hover, body.light select:hover, body.light #toggleTheme:hover {
+      background:#ddd;
+    }
+    video {
+      margin:10px;
+      max-width:100%;
+      border:2px solid #555;
+      border-radius:12px;
+      box-shadow:0 4px 12px rgba(0,0,0,0.7)
+    }
+    body.light video {
+      border:2px solid #bbb;
+    }
+    #instructions {margin-top:20px; font-size:18px; color:#0f0;}
+    .previewBox {position:fixed; bottom:20px; right:20px; border:2px solid #0ff; border-radius:12px; overflow:hidden; width:240px; height:150px; background:#000; z-index:9999; box-shadow:0 4px 15px rgba(0,255,255,0.5)}
+    .previewBox video {width:100%; height:100%; object-fit:cover}
+    #videos {display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:20px; margin-top:30px}
+    .videoContainer {display:flex; flex-direction:column; align-items:center; background:#111; padding:10px; border-radius:12px;}
+    body.light .videoContainer {background:#fafafa;}
+    .videoNumber {font-size:20px; margin-bottom:5px; color:#ff0; font-weight:bold}
+  </style>
+</head>
+<body>
+  <h2>hyuir - تسجيل الشاشة</h2>
+  <div>
+    <label>اختر الجودة:</label>
+    <select id="quality">
+      <option value="640x360">360p</option>
+      <option value="1280x720">720p</option>
+      <option value="1920x1080" selected>1080p</option>
+      <option value="3840x2160">4K</option>
+      <option value="7680x4320">8K</option>
+      <option value="10240x4320">10K</option>
+    </select>
+
+    <label>اختر FPS:</label>
+    <select id="fps">
+      <option value="15">15</option>
+      <option value="30" selected>30</option>
+      <option value="60">60</option>
+      <option value="120">120</option>
+      <option value="250">250</option>
+      <option value="270">270</option>
+    </select>
+
+    <label>اختصار الإيقاف:</label>
+    <select id="shortcut">
+      <option value="KeyQ">Q</option>
+      <option value="KeyS">S</option>
+      <option value="Escape">ESC</option>
+    </select>
+
+    <br>
+    <button id="startBtn">بدء التسجيل</button>
+    <button id="stopBtn" style="display:none">إيقاف التسجيل</button>
+    <button id="downloadBtn" style="display:none">تحميل الفيديو</button>
+    <button id="toggleTheme">🌙 / ☀️ تبديل الوضع</button>
+  </div>
+  <div id="instructions"></div>
+  <div id="videos"></div>
+  <div class="previewBox" id="previewBox" style="display:none"><video id="previewVideo" autoplay muted></video></div>
+
+  <script>
+    let mediaRecorder;
+    let chunks = [];
+    let recordedBlob;
+    let videoCount = 0;
+    let videosList = [];
+
+    async function startRecording() {
+      try {
+        const quality = document.getElementById("quality").value.split("x");
+        const fps = parseInt(document.getElementById("fps").value);
+
+        const stream = await navigator.mediaDevices.getDisplayMedia({ 
+          video: { width: { ideal: parseInt(quality[0]) }, height: { ideal: parseInt(quality[1]) }, frameRate: { ideal: fps }, cursor: "motion" },
+          audio: false 
+        });
+
+        document.getElementById("instructions").innerText = `جاري التسجيل بجودة ${quality[1]}p و ${fps}FPS`;
+
+        const previewBox = document.getElementById("previewBox");
+        const previewVideo = document.getElementById("previewVideo");
+        previewVideo.srcObject = stream;
+        previewBox.style.display = "block";
+
+        mediaRecorder = new MediaRecorder(stream, { mimeType: "video/webm; codecs=vp9" });
+        chunks = [];
+
+        mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+        mediaRecorder.onstop = () => {
+          recordedBlob = new Blob(chunks, { type: "video/webm" });
+          const url = URL.createObjectURL(recordedBlob);
+          videoCount++;
+
+          const container = document.createElement("div");
+          container.className = "videoContainer";
+
+          const number = document.createElement("div");
+          number.className = "videoNumber";
+          number.innerText = `#${videoCount}`;
+
+          const video = document.createElement("video");
+          video.controls = true;
+          video.src = url;
+
+          container.appendChild(number);
+          container.appendChild(video);
+          document.getElementById("videos").appendChild(container);
+
+          videosList.push({ blob: recordedBlob, url: url, id: videoCount });
+
+          document.getElementById("downloadBtn").style.display = "inline-block";
+          document.getElementById("stopBtn").style.display = "none";
+          document.getElementById("startBtn").style.display = "inline-block";
+          document.getElementById("instructions").innerText = "تم الحفظ. يمكنك مشاهدة الفيديو أو تحميله.";
+
+          stream.getTracks().forEach(track => track.stop());
+          previewBox.style.display = "none";
+        };
+
+        mediaRecorder.start();
+        document.getElementById("startBtn").style.display = "none";
+        document.getElementById("stopBtn").style.display = "inline-block";
+      } catch (err) {
+        alert("خطأ: " + err.message);
+      }
+    }
+
+    document.getElementById("startBtn").onclick = () => startRecording();
+    document.getElementById("stopBtn").onclick = () => { if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop(); };
+    document.getElementById("downloadBtn").onclick = () => {
+      if (videosList.length > 0) {
+        let choices = videosList.map(v => `فيديو #${v.id}`).join("\n");
+        let choice = prompt("اختر الفيديو المراد تحميله:\n" + choices);
+        if (choice) {
+          let id = parseInt(choice.replace(/[^0-9]/g, ""));
+          let vid = videosList.find(v => v.id === id);
+          if (vid) {
+            const a = document.createElement("a");
+            a.href = vid.url;
+            a.download = `تسجيل_${vid.id}.webm`;
+            a.click();
+          } else {
+            alert("لم يتم العثور على الفيديو");
+          }
+        }
+      }
+    };
+
+    document.addEventListener("keydown", e => {
+      const shortcut = document.getElementById("shortcut").value;
+      if (e.code === shortcut && mediaRecorder && mediaRecorder.state !== "inactive") {
+        mediaRecorder.stop();
+      }
+    });
+
+    document.getElementById("toggleTheme").onclick = () => {
+      document.body.classList.toggle("light");
+    };
+  </script>
+</body>
+</html>
